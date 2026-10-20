@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Type: Malware Defense</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0b0b16;
+            color: #00ffcc;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background: #111122;
+            border: 2px solid #00ffcc;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: 450px;
+            background: #050510;
+            border: 1px solid #333355;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 0 0 5px #00ffcc;
+        }
+
+        #input-container {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        #type-input {
+            flex-grow: 1;
+            background: #000;
+            border: 2px solid #00ffcc;
+            color: #00ffcc;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 20px;
+            padding: 10px;
+            outline: none;
+            box-shadow: inset 0 0 5px rgba(0, 255, 204, 0.5);
+        }
+
+        /* Modal Overlay for Quiz */
+        #quiz-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 11, 22, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            box-sizing: border-box;
+            z-index: 10;
+            text-align: center;
+        }
+
+        #quiz-overlay h2 {
+            color: #ff3366;
+            margin-bottom: 10px;
+            text-shadow: 0 0 8px #ff3366;
+        }
+
+        .question-box {
+            background: #1a1a3a;
+            border: 1px solid #00ffcc;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .option-btn {
+            display: block;
+            width: 100%;
+            background: #222244;
+            color: #00ffcc;
+            border: 1px solid #00ffcc;
+            padding: 10px;
+            margin: 8px 0;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 16px;
+            transition: 0.2s;
+            text-align: left;
+        }
+
+        .option-btn:hover {
+            background: #00ffcc;
+            color: #000;
+        }
+
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0b0b16;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            text-align: center;
+        }
+
+        .btn-main {
+            background: #00ffcc;
+            color: #000;
+            border: none;
+            padding: 12px 30px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            box-shadow: 0 0 10px #00ffcc;
+            margin-top: 20px;
+        }
+
+        .btn-main:hover {
+            background: #fff;
+            box-shadow: 0 0 15px #fff;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- Start / Game Over Overlay -->
+        <div id="start-screen">
+            <h1 style="color: #00ffcc; text-shadow: 0 0 10px #00ffcc;">SPACE TYPE: MALWARE DEFENSE</h1>
+            <p style="max-width: 500px; line-height: 1.5;">Type incoming words to destroy malware ships before they breach your firewall. If you lose all your shields, you must answer 3 cybersecurity questions correctly to reboot!</p>
+            <button class="btn-main" onclick="startGame()">INITIALIZE SYSTEM</button>
+        </div>
+
+        <!-- Malware Quiz Overlay -->
+        <div id="quiz-overlay">
+            <h2>SYSTEM BREACHED - REBOOT PROTOCOL REQUIRED</h2>
+            <p id="quiz-progress" style="margin-bottom: 15px; color: #ffaa00;">Answer 3 questions correctly to restore shields.</p>
+            <div class="question-box">
+                <p id="question-text" style="font-size: 18px; margin-bottom: 15px;"></p>
+                <div id="options-container"></div>
+            </div>
+        </div>
+
+        <!-- HUD -->
+        <div class="hud">
+            <div>SCORE: <span id="score-val">0</span></div>
+            <div>SHIELDS: <span id="lives-val">3</span></div>
+        </div>
+
+        <!-- Game Canvas -->
+        <div id="canvas-container">
+            <canvas id="gameCanvas" width="760" height="450"></canvas>
+        </div>
+
+        <!-- Input -->
+        <div id="input-container">
+            <input type="text" id="type-input" placeholder="Type falling words here..." autocomplete="off" autofocus disabled>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const scoreEl = document.getElementById('score-val');
+        const livesEl = document.getElementById('lives-val');
+        const typeInput = document.getElementById('type-input');
+        const startScreen = document.getElementById('start-screen');
+        const quizOverlay = document.getElementById('quiz-overlay');
+        const questionText = document.getElementById('question-text');
+        const optionsContainer = document.getElementById('options-container');
+        const quizProgress = document.getElementById('quiz-progress');
+
+        let score = 0;
+        let lives = 3;
+        let gameRunning = false;
+        let enemies = [];
+        let particles = [];
+        let spawnInterval = 2000;
+        let lastSpawnTime = 0;
+        let gameSpeed = 1;
+
+        // Malware Question Bank
+        const malwareQuestions = [
+            {
+                q: "What type of malware disguises itself as legitimate software while secretly performing malicious actions?",
+                options: ["Trojan Horse", "Ransomware", "Worm", "Adware"],
+                answer: 0
+            },
+            {
+                q: "Which malware locks or encrypts a user's files and demands payment for the decryption key?",
+                options: ["Spyware", "Ransomware", "Rootkit", "Keylogger"],
+                answer: 1
+            },
+            {
+                q: "What self-replicating malware spreads across networks without needing user interaction or a host program?",
+                options: ["Virus", "Trojan", "Worm", "Logic Bomb"],
+                answer: 2
+            },
+            {
+                q: "Which malicious software silently records keystrokes to steal passwords and sensitive data?",
+                options: ["Keylogger", "Adware", "Botnet", "Worm"],
+                answer: 0
+            },
+            {
+                q: "What type of malware grants administrator-level privileges to an attacker while remaining deeply hidden in the OS?",
+                options: ["Rootkit", "Spyware", "Virus", "Scareware"],
+                answer: 0
+            },
+            {
+                q: "Which malicious program attaches itself to clean files and spreads when those files are executed?",
+                options: ["Worm", "Computer Virus", "Spyware", "Phishing Script"],
+                answer: 1
+            },
+            {
+                q: "What is a network of infected computers (bots) controlled remotely by a cybercriminal called?",
+                options: ["Botnet", "Proxy Cluster", "Hydra Node", "Hivemind"],
+                answer: 0
+            },
+            {
+                q: "What type of software forces unwanted advertisements onto your computer screen or browser?",
+                options: ["Adware", "Spam", "Trojan", "Scareware"],
+                answer: 0
+            }
+        ];
+
+        let currentQuizQuestions = [];
+        let quizIndex = 0;
+        let correctAnswersCount = 0;
+
+        const malwareWords = [
+            "trojan", "ransomware", "worm", "spyware", "rootkit", 
+            "keylogger", "botnet", "adware", "virus", "payload", 
+            "exploit", "backdoor", "phishing", "malware", "ddos"
+        ];
+
+        class Enemy {
+            constructor(word, x, y, speed) {
+                this.word = word;
+                this.x = x;
+                this.y = y;
+                this.speed = speed;
+            }
+
+            update() {
+                this.y += this.speed;
+            }
+
+            draw() {
+                ctx.fillStyle = '#ff3366';
+                ctx.font = 'bold 18px "Courier New"';
+                ctx.fillText(this.word, this.x, this.y);
+                
+                // Draw small ship node above word
+                ctx.fillStyle = '#00ffcc';
+                ctx.fillRect(this.x, this.y - 12, 12, 6);
+            }
+        }
+
+        function startGame() {
+            startScreen.style.display = 'none';
+            quizOverlay.style.display = 'none';
+            score = 0;
+            lives = 3;
+            gameSpeed = 1;
+            enemies = [];
+            scoreEl.textContent = score;
+            livesEl.textContent = lives;
+            gameRunning = true;
+            typeInput.disabled = false;
+            typeInput.value = '';
+            typeInput.focus();
+            lastSpawnTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function spawnEnemy() {
+            const word = malwareWords[Math.floor(Math.random() * malwareWords.length)];
+            const x = Math.random() * (canvas.width - 150) + 20;
+            const speed = (Math.random() * 0.5 + 0.7) * gameSpeed;
+            enemies.push(new Enemy(word, x, 20, speed));
+        }
+
+        function gameLoop(timestamp) {
+            if (!gameRunning) return;
+
+            // Handle spawning
+            if (timestamp - lastSpawnTime > spawnInterval) {
+                spawnEnemy();
+                lastSpawnTime = timestamp;
+                // Gradually increase difficulty
+                if (spawnInterval > 800) spawnInterval -= 50;
+                gameSpeed += 0.02;
+            }
+
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Update & Draw Enemies
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let enemy = enemies[i];
+                enemy.update();
+                enemy.draw();
+
+                // Check bottom breach
+                if (enemy.y > canvas.height - 30) {
+                    enemies.splice(i, 1);
+                    loseLife();
+                    if (!gameRunning) return;
+                }
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function loseLife() {
+            lives--;
+            livesEl.textContent = lives;
+            if (lives <= 0) {
+                triggerMalwareQuiz();
+            }
+        }
+
+        // Handle typing input validation
+        typeInput.addEventListener('input', (e) => {
+            if (!gameRunning) return;
+            const typed = typeInput.value.trim().toLowerCase();
+
+            // Check if typed word matches any active enemy
+            const index = enemies.findIndex(enemy => enemy.word === typed);
+            if (index !== -1) {
+                enemies.splice(index, 1);
+                score += 10;
+                scoreEl.textContent = score;
+                typeInput.value = '';
+            }
+        });
+
+        // Trigger Malware Quiz upon death
+        function triggerMalwareQuiz() {
+            gameRunning = false;
+            typeInput.disabled = true;
+            
+            // Pick 3 random distinct questions
+            currentQuizQuestions = [...malwareQuestions].sort(() => 0.5 - Math.random()).slice(0, 3);
+            quizIndex = 0;
+            correctAnswersCount = 0;
+
+            quizOverlay.style.display = 'flex';
+            loadQuizQuestion();
+        }
+
+        function loadQuizQuestion() {
+            if (quizIndex >= 3) {
+                checkQuizCompletion();
+                return;
+            }
+
+            quizProgress.textContent = `Question ${quizIndex + 1} of 3 (Correct: ${correctAnswersCount}/3)`;
+            const currentQ = currentQuizQuestions[quizIndex];
+            questionText.textContent = currentQ.q;
+            optionsContainer.innerHTML = '';
+
+            currentQ.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.textContent = `${String.fromCharCode(65 + idx)}. ${opt}`;
+                btn.onclick = () => handleAnswer(idx === currentQ.answer);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function handleAnswer(isCorrect) {
+            if (isCorrect) {
+                correctAnswersCount++;
+            }
+            quizIndex++;
+            loadQuizQuestion();
+        }
+
+        function checkQuizCompletion() {
+            if (correctAnswersCount >= 3) {
+                // Passed! Revive player with full shields
+                quizOverlay.style.display = 'none';
+                lives = 3;
+                livesEl.textContent = lives;
+                gameRunning = true;
+                typeInput.disabled = false;
+                typeInput.value = '';
+                typeInput.focus();
+                lastSpawnTime = performance.now();
+                requestAnimationFrame(gameLoop);
+            } else {
+                // Failed quiz — show game over screen / restart prompt
+                quizOverlay.innerHTML = `
+                    <h2 style="color: #ff3366;">REBOOT FAILED</h2>
+                    <p style="margin-bottom: 20px;">You answered ${correctAnswersCount}/3 questions correctly. Security protocols rejected your reboot attempt.</p>
+                    <p>Final Score: <strong>${score}</strong></p>
+                    <button class="btn-main" onclick="location.reload()">TRY AGAIN</button>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
